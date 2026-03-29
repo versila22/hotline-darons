@@ -24,4 +24,4 @@ MAX_PHOTO_SIZE_MB: int = 10
 
 # ── Modèles ───────────────────────────────────────────────────────────────────
 GEMINI_MODEL: str = "gemini-2.5-flash"
-EMBEDDING_MODEL: str = "text-embedding-004"
+EMBEDDING_MODEL: str = "models/gemini-embedding-001"
