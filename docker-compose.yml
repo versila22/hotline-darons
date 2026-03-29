@@ -1,0 +1,26 @@
+services:
+  hotline-darons:
+    build: .
+    container_name: hotline-darons
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Knowledge base : modifiable à chaud (nécessite redémarrage du bot)
+      - ./knowledge:/app/knowledge:ro
+      # Base SQLite : persistance entre les redémarrages
+      - hotline_data:/app/data
+    environment:
+      - KNOWLEDGE_DIR=/app/knowledge
+      - DB_PATH=/app/data/hotline_darons.db
+      - PYTHONUNBUFFERED=1
+    # Healthcheck basique : vérifie que le process Python tourne
+    healthcheck:
+      test: ["CMD", "python", "-c", "import bot.config; print('OK')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  hotline_data:
+    driver: local
