@@ -1,13 +1,29 @@
 # 🤖 Hotline Darons
 
-![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
-![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-orange?logo=google)
-![Telegram](https://img.shields.io/badge/Telegram%20Bot%20API-21%2B-2CA5E0?logo=telegram)
-![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
+[![Gemini 2.5 Flash](https://img.shields.io/badge/Gemini-2.5%20Flash-orange?logo=google)](https://deepmind.google/technologies/gemini/)
+[![Telegram Bot](https://img.shields.io/badge/Telegram%20Bot%20API-21%2B-2CA5E0?logo=telegram)](https://core.telegram.org/bots/api)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker)](https://www.docker.com/)
+[![Tests](https://img.shields.io/badge/tests-38%2F38%20passing-brightgreen?logo=pytest)](tests/)
+[![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)](LICENSE)
 
-> **Un assistant technique IA pour les parents — accessible via Telegram, propulsé par Gemini 2.5 Flash.**
+> **Bot Telegram IA multimodal pour le support technique parental — propulsé par Gemini 2.5 Flash.**
 
 Fini les appels paniqués à 22h pour "la télé qui s'allume plus". **Hotline Darons** répond en quelques secondes, en français simple, avec une patience infinie. Il analyse les photos d'écran, comprend les messages vocaux, et escalade vers vous seulement quand c'est vraiment nécessaire.
+
+---
+
+## 🎯 Compétences démontrées
+
+| Domaine | Implémentation |
+|---------|---------------|
+| **LLM / Multimodal** | Gemini 2.5 Flash — texte, image, audio natif |
+| **RAG familial** | Embedding Google + cosine search sur knowledge base `.md` |
+| **Bot Telegram** | Handlers async, gestion de session, file d'attente photo→question |
+| **Sécurité IA** | Filtre PII (IBAN, CB, mots de passe) sur texte et images |
+| **Escalade intelligente** | Détection de niveau de complexité → transfert à l'humain |
+| **Tests** | 38/38 tests pytest — session store, PII filter, escalade |
+| **DevOps** | Docker Compose, variables d'environnement, SQLite persistant |
 
 ---
 
