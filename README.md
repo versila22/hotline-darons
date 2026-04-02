@@ -18,7 +18,7 @@ Fini les appels paniqués à 22h pour "la télé qui s'allume plus". **Hotline D
 | Domaine | Implémentation |
 |---------|---------------|
 | **LLM / Multimodal** | Gemini 2.5 Flash — texte, image, audio natif |
-| **RAG familial** | Embedding Google + cosine search sur knowledge base `.md` |
+| **RAG familial** | Embedding Google + cosine search sur knowledge base `.md` + `.pdf` |
 | **Bot Telegram** | Handlers async, gestion de session, file d'attente photo→question |
 | **Sécurité IA** | Filtre PII (IBAN, CB, mots de passe) sur texte et images |
 | **Escalade intelligente** | Détection de niveau de complexité → transfert à l'humain |
@@ -113,7 +113,24 @@ Envoyez `/start` à [@userinfobot](https://t.me/userinfobot) sur Telegram — il
 ...
 ```
 
+**Nouveau !** Ajoutez des fichiers PDF (modes d'emploi, manuels) :
+
+```bash
+# Ajouter des manuels PDF
+cp ~/Downloads/manuel_tv.pdf knowledge/
+cp ~/Downloads/guide_freebox.pdf knowledge/
+
+# Redémarrer le bot pour recharger la base
+docker-compose restart
+```
+
 Le bot recharge automatiquement la base au démarrage. Voir [`knowledge/README.md`](knowledge/README.md) pour le guide complet.
+
+**Support PDF** :
+- ✅ Extraction automatique du texte
+- ✅ Pagination (chaque page est un chunk)
+- ✅ Compatible avec tous les fichiers PDF
+- ⚠️ Nécessite `PyPDF2>=3.0.0` (inclus dans requirements.txt)
 
 ---
 

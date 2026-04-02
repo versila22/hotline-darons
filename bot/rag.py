@@ -1,18 +1,25 @@
 """RAG familial — Knowledge Base avec embeddings Google text-embedding-004.
 
-Charge les fichiers Markdown du dossier knowledge/, les découpe par sections (##),
+Charge les fichiers Markdown et PDF du dossier knowledge/, les découpe par sections (##),
 calcule les embeddings en mémoire, et expose une fonction search() par cosine similarity.
 """
 
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
 
 import numpy as np
 from google import genai
 
 from .config import EMBEDDING_MODEL, GEMINI_API_KEY, KNOWLEDGE_DIR
+
+# Import PDF parser if available
+try:
+    from .pdf_parser import parse_pdf_files
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +33,7 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (norm_a * norm_b))
 
 
-def _split_markdown_by_headers(content: str, source: str) -> list[dict]:
+def _split_markdown_by_headers(content: str, source: str = "unknown") -> list[dict]:
     """Découpe un fichier Markdown en chunks par headers de niveau ## (H2).
 
     Chaque chunk est un dict {"text": str, "source": str}.
@@ -65,13 +72,17 @@ class RAGEngine:
     # ── Chargement ────────────────────────────────────────────────────────────
 
     def load(self) -> None:
-        """Charge tous les fichiers .md du dossier knowledge/ et calcule les embeddings."""
+        """Charge tous les fichiers .md et .pdf du dossier knowledge/ et calcule les embeddings."""
         md_files = sorted(self._knowledge_dir.glob("*.md"))
-        if not md_files:
-            logger.warning("No .md files found in %s", self._knowledge_dir)
+        pdf_files = sorted(self._knowledge_dir.glob("*.pdf")) if PDF_SUPPORT else []
+        
+        if not md_files and not pdf_files:
+            logger.warning("No .md or .pdf files found in %s", self._knowledge_dir)
             return
 
         all_chunks: list[dict] = []
+        
+        # Load Markdown files
         for md_path in md_files:
             try:
                 content = md_path.read_text(encoding="utf-8")
@@ -80,6 +91,13 @@ class RAGEngine:
                 logger.info("Loaded %d chunks from %s", len(chunks), md_path.name)
             except Exception as exc:
                 logger.error("Failed to read %s: %s", md_path, exc)
+        
+        # Load PDF files
+        if PDF_SUPPORT and pdf_files:
+            logger.info("📄 Loading %d PDF file(s)...", len(pdf_files))
+            pdf_chunks = parse_pdf_files(self._knowledge_dir)
+            all_chunks.extend(pdf_chunks)
+            logger.info("Loaded %d chunks from PDFs", len(pdf_chunks))
 
         if not all_chunks:
             logger.warning("No chunks to embed.")
@@ -91,7 +109,8 @@ class RAGEngine:
         self._chunks = all_chunks
         self._embeddings = embeddings
         self._loaded = True
-        logger.info("RAG loaded: %d chunks, %d embeddings", len(self._chunks), len(self._embeddings))
+        logger.info("RAG loaded: %d chunks (%d from Markdown, %d from PDFs), %d embeddings", 
+                    len(self._chunks), len(md_files), len(pdf_files), len(self._embeddings))
 
     def _embed_batch(self, texts: list[str]) -> list[np.ndarray]:
         """Embed une liste de textes via text-embedding-004."""

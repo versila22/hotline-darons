@@ -1,11 +1,23 @@
 # Knowledge Base — Comment personnaliser ?
 
 Ce dossier contient la base de connaissances chargée par le bot au démarrage.
-Tous les fichiers `.md` sont automatiquement indexés.
+**Tous les fichiers `.md` et `.pdf` sont automatiquement indexés.**
+
+## 🆕 Nouveau : Support PDF !
+
+Vous pouvez maintenant ajouter des fichiers PDF (modes d'emploi, manuels techniques) :
+
+```bash
+# Exemple : ajouter des manuels
+cp ~/Downloads/manuel_tv_samsung.pdf knowledge/
+cp ~/Downloads/guide_freebox.pdf knowledge/
+```
+
+Le bot extraira automatiquement le texte de chaque page PDF et l'indexera dans la base RAG.
 
 ## Structure recommandée
 
-Chaque fichier doit être structuré avec des titres `##` (H2) — ils définissent les chunks de recherche.
+Chaque fichier Markdown doit être structuré avec des titres `##` (H2) — ils définissent les chunks de recherche.
 
 ```markdown
 # Titre du document
@@ -17,9 +29,11 @@ Contenu de la section...
 Contenu de la section...
 ```
 
+**Pour les PDF** : Pas besoin de formatage spécial. Le bot extrait le texte page par page.
+
 ## Comment modifier
 
-1. Éditer `famille_jacq.md` (ou créer un nouveau fichier `.md`)
+1. Éditer `famille_jacq.md` (ou créer un nouveau fichier `.md` ou `.pdf`)
 2. Remplacer les `[À remplir]` par les vraies informations
 3. Relancer le bot (il recharge la base au démarrage)
 
