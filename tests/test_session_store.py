@@ -1,18 +1,17 @@
 """Tests unitaires pour bot/session_store.py."""
 
+import json
 import os
+import sqlite3
 import sys
 import time
-import tempfile
-from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from bot.session_store import SessionStore
+from bot.session_store import MAX_STORED_MESSAGES, SessionStore
 
 
 @pytest.fixture
@@ -132,6 +131,21 @@ class TestConversationHistory:
             store.save_message(user_id=9, role="user", content=f"msg {i}")
         history = store.get_history(user_id=9)
         assert len(history) == 5
+
+    def test_history_storage_is_bounded(self, store):
+        for i in range(MAX_STORED_MESSAGES + 7):
+            store.save_message(user_id=11, role="user", content=f"msg {i}")
+
+        with sqlite3.connect(store._db_path) as conn:
+            row = conn.execute(
+                "SELECT conv_history FROM sessions WHERE user_id = ?",
+                (11,),
+            ).fetchone()
+
+        stored_history = json.loads(row[0])
+        assert len(stored_history) == MAX_STORED_MESSAGES
+        assert stored_history[0]["content"] == "msg 7"
+        assert stored_history[-1]["content"] == f"msg {MAX_STORED_MESSAGES + 6}"
 
     def test_multiple_users_isolated(self, store):
         """Les historiques de deux utilisateurs sont bien séparés."""

@@ -15,6 +15,8 @@ from .config import DB_PATH, CONTEXT_EXPIRATION_MINUTES
 
 logger = logging.getLogger(__name__)
 
+MAX_STORED_MESSAGES = 20
+
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS sessions (
     user_id       INTEGER NOT NULL,
@@ -172,6 +174,7 @@ class SessionStore:
                     "ts": datetime.now(timezone.utc).isoformat(),
                 }
             )
+            history = history[-MAX_STORED_MESSAGES:]
 
             conn.execute(
                 "UPDATE sessions SET conv_history = ? WHERE user_id = ?",

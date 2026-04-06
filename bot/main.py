@@ -165,7 +165,7 @@ async def handle_voice_or_text(
 
     # ── Diagnostic Gemini ─────────────────────────────────────────────────────
     try:
-        ai_response = _ai.diagnose(
+        ai_response = await _ai.diagnose(
             text=text,
             audio_bytes=audio_bytes,
             photo_bytes=photo_bytes,

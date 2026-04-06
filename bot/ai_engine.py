@@ -5,6 +5,7 @@ injecte le contexte RAG, et retourne une AIResponse structurée
 (incluant la détection d'escalade via JSON structuré).
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -77,7 +78,7 @@ class AIEngine:
     def __init__(self, api_key: str = GEMINI_API_KEY) -> None:
         self._client = genai.Client(api_key=api_key)
 
-    def diagnose(
+    async def diagnose(
         self,
         text: Optional[str] = None,
         audio_bytes: Optional[bytes] = None,
@@ -97,6 +98,24 @@ class AIEngine:
         Returns:
             AIResponse avec la réponse et le flag d'escalade.
         """
+        return await asyncio.to_thread(
+            self._diagnose_sync,
+            text,
+            audio_bytes,
+            photo_bytes,
+            rag_context,
+            history,
+        )
+
+    def _diagnose_sync(
+        self,
+        text: Optional[str] = None,
+        audio_bytes: Optional[bytes] = None,
+        photo_bytes: Optional[bytes] = None,
+        rag_context: Optional[list[str]] = None,
+        history: Optional[list[dict]] = None,
+    ) -> AIResponse:
+        """Version synchrone exécutée dans un thread pour éviter de bloquer l'event loop."""
         system_prompt = _SYSTEM_PROMPT_BASE
 
         # Injection du contexte RAG
