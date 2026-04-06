@@ -7,7 +7,6 @@ calcule les embeddings en mémoire, et expose une fonction search() par cosine s
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from google import genai

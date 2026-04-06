@@ -8,7 +8,7 @@ injecte le contexte RAG, et retourne une AIResponse structurée
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from google import genai

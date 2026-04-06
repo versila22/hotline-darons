@@ -7,7 +7,7 @@ import json
 import logging
 import sqlite3
 import time as _time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
