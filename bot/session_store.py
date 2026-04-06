@@ -206,3 +206,12 @@ class SessionStore:
 
         history: list = json.loads(row["conv_history"])
         return history[-limit:]
+
+    def clear_session(self, user_id: int) -> None:
+        """Supprime le contexte stocké pour un utilisateur."""
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        finally:
+            conn.close()
+        logger.info("Session cleared for user %d", user_id)

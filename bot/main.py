@@ -2,6 +2,8 @@
 
 Handlers :
 - /start  : Message d'accueil chaleureux
+- /aide   : Aide et commandes disponibles
+- /reset  : Réinitialisation du contexte utilisateur
 - /status : Vérification que le bot est opérationnel
 - photo   : Stockage en SQLite + accusé de réception
 - voice   : Diagnostic Gemini multimodal
@@ -11,10 +13,12 @@ Handlers :
 import asyncio
 import logging
 import sys
+import uuid
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -48,21 +52,137 @@ _store = SessionStore(DB_PATH)
 _rag = RAGEngine(KNOWLEDGE_DIR)
 _ai = AIEngine()
 
+_MAX_TELEGRAM_MESSAGE_LEN = 2000
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _quick_actions_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ C'est réglé", callback_data="resolved")],
+            [InlineKeyboardButton("❓ Autre question", callback_data="question")],
+            [InlineKeyboardButton("👤 Parler à un humain", callback_data="escalate")],
+        ]
+    )
+
+
+def _paginate_text(text: str, max_len: int = _MAX_TELEGRAM_MESSAGE_LEN) -> list[str]:
+    """Découpe un texte long en messages Telegram raisonnables."""
+    if len(text) <= max_len:
+        return [text]
+
+    chunks: list[str] = []
+    remaining = text
+
+    while len(remaining) > max_len:
+        split_at = remaining.rfind("\n\n", 0, max_len)
+        if split_at == -1:
+            split_at = remaining.rfind("\n", 0, max_len)
+        if split_at == -1:
+            split_at = remaining.rfind(" ", 0, max_len)
+        if split_at == -1 or split_at < max_len // 2:
+            split_at = max_len
+
+        chunks.append(remaining[:split_at].rstrip())
+        remaining = remaining[split_at:].lstrip()
+
+    if remaining:
+        chunks.append(remaining)
+
+    return chunks
+
+
+def _store_pending_pages(
+    context: ContextTypes.DEFAULT_TYPE, user_id: int, pages: list[str]
+) -> str:
+    token = uuid.uuid4().hex[:12]
+    pending_pages = context.user_data.setdefault("pending_pages", {})
+    pending_pages[token] = {"user_id": user_id, "pages": pages}
+    return token
+
+
+async def _send_answer_with_ui(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    answer: str,
+    *,
+    status_msg=None,
+) -> None:
+    """Envoie une réponse avec pagination éventuelle et boutons rapides."""
+    pages = _paginate_text(answer)
+    message = update.effective_message
+    user_id = update.effective_user.id if update.effective_user else 0
+
+    if len(pages) == 1:
+        if status_msg:
+            await status_msg.edit_text(answer, reply_markup=_quick_actions_markup())
+        else:
+            await message.reply_text(answer, reply_markup=_quick_actions_markup())
+        return
+
+    token = _store_pending_pages(context, user_id, pages[1:])
+    first_markup = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Suite →", callback_data=f"next:{token}")],
+            [InlineKeyboardButton("👤 Parler à un humain", callback_data="escalate")],
+        ]
+    )
+
+    first_page = f"{pages[0]}\n\n(1/{len(pages)})"
+    if status_msg:
+        await status_msg.edit_text(first_page, reply_markup=first_markup)
+    else:
+        await message.reply_text(first_page, reply_markup=first_markup)
+
+
+async def _trigger_manual_escalation(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    summary: str,
+) -> bool:
+    user = update.effective_user
+    if not user:
+        return False
+
+    user_info = {
+        "id": user.id,
+        "first_name": user.first_name or "",
+        "last_name": user.last_name or "",
+        "username": user.username or "",
+    }
+    photo_bytes = _store.get_photo(user.id)
+    return await escalate(
+        bot=context.bot,
+        user_info=user_info,
+        summary=summary,
+        photo_bytes=photo_bytes,
+    )
+
+
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler /start — message d'accueil."""
-    first_name = update.effective_user.first_name if update.effective_user else "toi"
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler /start — message d'accueil avec actions rapides."""
+    welcome_text = (
+        "👋 Bonjour ! Je suis l'assistant de la *Hotline Darons*.\n\n"
+        "Je suis là pour vous aider avec les défis du quotidien avec les aînés.\n\n"
+        "💬 Décrivez simplement votre situation et je vous accompagne.\n"
+        "📸 Vous pouvez aussi envoyer une photo si c'est utile.\n\n"
+        "_Pour parler à un humain, tapez /aide_"
+    )
+    keyboard = [
+        [InlineKeyboardButton("🆘 Besoin d'aide urgente", callback_data="urgent")],
+        [InlineKeyboardButton("💬 Poser une question", callback_data="question")],
+        [InlineKeyboardButton("👤 Parler à un humain", callback_data="escalate")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"👋 Coucou {first_name} ! Je suis l'assistant de Jay.\n\n"
-        "Si tu as un souci avec la télé 📺, l'ordinateur 💻 ou le téléphone 📱, "
-        "je suis là pour t'aider !\n\n"
-        "Tu peux :\n"
-        "• M'envoyer une 📸 photo de l'écran\n"
-        "• Me laisser un 🎤 message vocal\n"
-        "• M'écrire directement\n\n"
-        "On va résoudre ça ensemble, pas de panique ! 😊"
+        welcome_text,
+        parse_mode="Markdown",
+        reply_markup=reply_markup,
     )
 
 
@@ -74,6 +194,117 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         f"📚 Base de connaissances : {rag_status}\n\n"
         "Envoie-moi une photo ou un message vocal si tu as un souci."
     )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler /aide — aide utilisateur."""
+    await update.message.reply_text(
+        "🧭 *Aide Hotline Darons*\n\n"
+        "Tu peux :\n"
+        "• décrire ton problème avec un message\n"
+        "• envoyer une photo 📸\n"
+        "• envoyer un message vocal 🎤\n\n"
+        "Commandes disponibles :\n"
+        "/start — voir l'accueil\n"
+        "/aide — afficher cette aide\n"
+        "/reset — effacer notre conversation et repartir à zéro\n"
+        "/status — vérifier que le bot fonctionne\n\n"
+        "Si c'est urgent ou si tu préfères, je peux aussi prévenir un humain 👤",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("👤 Parler à un humain", callback_data="escalate")]]
+        ),
+    )
+
+
+async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler /reset — purge la session utilisateur."""
+    user_id = update.effective_user.id
+    _store.clear_session(user_id)
+    context.user_data.pop("pending_pages", None)
+    await update.message.reply_text(
+        "🧹 C'est remis à zéro. On repart sur une conversation toute neuve !"
+    )
+
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Gestionnaire des boutons inline."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "urgent":
+        await query.message.reply_text(
+            "🆘 Je comprends que c'est urgent. Décrivez la situation..."
+        )
+        escalated = await _trigger_manual_escalation(
+            update,
+            context,
+            summary="L'utilisateur a indiqué via le bouton que la situation est urgente.",
+        )
+        if escalated:
+            await query.message.reply_text(
+                "👤 J'ai aussi prévenu un humain pour accélérer la prise en charge."
+            )
+
+    elif query.data == "question":
+        await query.message.reply_text("💬 Quelle est votre question ?")
+
+    elif query.data == "escalate":
+        escalated = await _trigger_manual_escalation(
+            update,
+            context,
+            summary="L'utilisateur a demandé à parler à un humain.",
+        )
+        if escalated:
+            await query.message.reply_text(
+                "👤 Je vous mets en contact avec un humain..."
+            )
+        else:
+            await query.message.reply_text(
+                "⚠️ Je n'ai pas réussi à prévenir un humain tout de suite, mais vous pouvez quand même continuer à me décrire la situation."
+            )
+
+    elif query.data == "resolved":
+        await query.message.reply_text(
+            "✨ Super, content que ce soit réglé ! Si besoin, je suis là pour une autre question."
+        )
+
+    elif query.data and query.data.startswith("next:"):
+        token = query.data.split(":", 1)[1]
+        pending_pages = context.user_data.get("pending_pages", {})
+        entry = pending_pages.get(token)
+        current_user_id = update.effective_user.id if update.effective_user else None
+
+        if (
+            not entry
+            or not entry.get("pages")
+            or entry.get("user_id") != current_user_id
+        ):
+            await query.message.reply_text(
+                "Je n'ai plus la suite sous la main. Tu peux me redemander si besoin 🙂"
+            )
+            return
+
+        next_page = entry["pages"].pop(0)
+        remaining_count = len(entry["pages"])
+
+        if remaining_count:
+            markup = InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("Suite →", callback_data=f"next:{token}")],
+                    [InlineKeyboardButton("👤 Parler à un humain", callback_data="escalate")],
+                ]
+            )
+        else:
+            pending_pages.pop(token, None)
+            markup = _quick_actions_markup()
+
+        suffix = (
+            f"\n\n(Suite, encore {remaining_count} message(s))"
+            if remaining_count
+            else "\n\n(Fin de la réponse)"
+        )
+        await query.message.reply_text(next_page + suffix, reply_markup=markup)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -204,7 +435,10 @@ async def handle_voice_or_text(
             "last_name": user.last_name or "",
             "username": user.username or "",
         }
-        escalation_summary = ai_response.escalation_reason or "Problème nécessitant une intervention humaine"
+        escalation_summary = (
+            ai_response.escalation_reason
+            or "Problème nécessitant une intervention humaine"
+        )
 
         await escalate(
             bot=context.bot,
@@ -213,12 +447,19 @@ async def handle_voice_or_text(
             photo_bytes=photo_bytes,
         )
 
-        await status_msg.edit_text(
-            f"{answer}\n\n"
-            "📲 J'ai prévenu Jay, il va te contacter très bientôt !"
+        await _send_answer_with_ui(
+            update,
+            context,
+            f"{answer}\n\n📲 J'ai prévenu Jay, il va te contacter très bientôt !",
+            status_msg=status_msg,
         )
     else:
-        await status_msg.edit_text(answer)
+        await _send_answer_with_ui(
+            update,
+            context,
+            answer,
+            status_msg=status_msg,
+        )
 
     # Purge périodique des sessions expirées (fire and forget)
     asyncio.create_task(_async_cleanup())
@@ -250,8 +491,11 @@ def main() -> None:
 
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    application.add_handler(CommandHandler("start", cmd_start))
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("aide", help_command))
+    application.add_handler(CommandHandler("reset", reset_command))
     application.add_handler(CommandHandler("status", cmd_status))
+    application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(
         MessageHandler(
