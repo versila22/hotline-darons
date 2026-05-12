@@ -117,6 +117,18 @@ Le bot recharge automatiquement la base au démarrage. Voir [`knowledge/README.m
 
 ---
 
+## Intégration WhatsApp (Twilio)
+
+Le bot supporte également WhatsApp via l'API Twilio.
+
+1. Créez un compte Twilio et configurez une sandbox WhatsApp ou un numéro.
+2. Lancez le serveur webhook en utilisant FastAPI/Uvicorn :
+   ```bash
+   uvicorn bot.twilio_webhook:app --host 0.0.0.0 --port 8000
+   ```
+3. Configurez l'URL de votre webhook dans la console Twilio (ex: `https://votre-domaine.com/whatsapp`).
+4. Envoyez vos messages (texte, audio, image) sur WhatsApp !
+
 ## Fonctionnalités
 
 | Fonctionnalité | Description |
@@ -165,7 +177,6 @@ pytest tests/ -v
 
 ## Roadmap
 
-- [ ] Support WhatsApp (Twilio / Meta API)
 - [ ] Interface d'administration web pour mettre à jour la knowledge base
 - [ ] Résumé hebdomadaire des problèmes résolus
 - [ ] Support multi-familles (configuration par utilisateur autorisé)
