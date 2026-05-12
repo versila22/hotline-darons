@@ -21,6 +21,19 @@ services:
       retries: 3
       start_period: 30s
 
+  dashboard:
+    build: .
+    container_name: hotline-darons-dashboard
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - hotline_data:/app/data:ro
+    environment:
+      - DB_PATH=/app/data/hotline_darons.db
+    ports:
+      - "8501:8501"
+    command: ["streamlit", "run", "dashboard.py"]
+
 volumes:
   hotline_data:
     driver: local

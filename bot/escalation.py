@@ -6,14 +6,45 @@ il envoie un résumé formaté à ESCALATION_CHAT_ID (le Telegram ID de Jerome).
 
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+import sqlite3
 
 from telegram import Bot
 from telegram.constants import ParseMode
 
 from .config import ESCALATION_CHAT_ID
+from bot import config
 
 logger = logging.getLogger(__name__)
+
+
+def _save_escalation_to_db(user_info: dict, summary: str, has_photo: bool) -> None:
+    """Enregistre l'escalade dans la base SQLite pour le dashboard."""
+    try:
+        conn = sqlite3.connect(config.DB_PATH, isolation_level=None)
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS escalations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                user_name TEXT,
+                summary TEXT NOT NULL,
+                has_photo BOOLEAN NOT NULL DEFAULT 0
+            )
+        ''')
+        
+        now_iso = datetime.now(timezone.utc).isoformat()
+        user_id = user_info.get("id", 0)
+        user_name = _format_user_name(user_info)
+        
+        conn.execute('''
+            INSERT INTO escalations (timestamp, user_id, user_name, summary, has_photo)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (now_iso, user_id, user_name, summary, has_photo))
+        
+        conn.close()
+    except Exception as exc:
+        logger.error("Failed to save escalation to DB: %s", exc)
 
 
 async def escalate(
@@ -46,6 +77,9 @@ async def escalate(
         f"📋 Résumé : {summary}\n"
         f"🕐 {timestamp}"
     )
+
+    # Log to database for Streamlit Dashboard
+    _save_escalation_to_db(user_info, summary, bool(photo_bytes))
 
     try:
         if photo_bytes:

@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier le code source
 COPY bot/ ./bot/
 COPY knowledge/ ./knowledge/
+COPY dashboard.py ./
 
 # Créer le répertoire pour la base SQLite
 RUN mkdir -p /app/data
